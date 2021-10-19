@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime"
 )
 
@@ -125,7 +126,14 @@ func countFile(name string, jobs int) (int, error) {
 	return wordCountParallel(input, jobs), nil
 }
 
+func usage() {
+	exe := filepath.Base(os.Args[0])
+	fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [flags] [files]\n", exe)
+	flag.PrintDefaults()
+}
+
 func main() {
+	flag.Usage = usage
 	flag.Parse()
 
 	files := flag.Args()
