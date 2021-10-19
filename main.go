@@ -185,13 +185,15 @@ func main() {
 		total += val.Words
 	}
 
-	cols = math.Max(cols, math.Log10(float64(total)))
+	if len(files) > 1 {
+		cols = math.Max(cols, math.Log10(float64(total)))
 
-	retVals = append(retVals, retVal{
-		File: "total",
-		Words: total,
-		Error: nil,
-	})
+		retVals = append(retVals, retVal{
+			File: "total",
+			Words: total,
+			Error: nil,
+		})
+	}
 
 	colstr := strconv.Itoa(int(math.Ceil(cols)))
 
