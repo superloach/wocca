@@ -4,9 +4,11 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 )
 
 func isWhite(b byte) bool {
@@ -112,7 +114,7 @@ func countFile(name string, jobs int) (int, error) {
 	if name != flagInputStdin {
 		f, err = os.Open(name)
 		if err != nil {
-			return -1, fmt.Errorf("open %q: %w", name, err)
+			return -1, err
 		}
 
 		defer f.Close()
@@ -120,7 +122,7 @@ func countFile(name string, jobs int) (int, error) {
 
 	input, err := io.ReadAll(f)
 	if err != nil {
-		return -1, fmt.Errorf("read %q: %w", f.Name(), err)
+		return -1, err
 	}
 
 	return wordCountParallel(input, jobs), nil
@@ -143,6 +145,7 @@ func main() {
 	}
 
 	type retVal struct {
+		File string
 		Words int
 		Error error
 	}
@@ -160,20 +163,45 @@ func main() {
 			}
 
 			ret <- retVal{
+				File: file,
 				Words: n,
 				Error: err,
 			}
 		}()
 	}
 
-	for i, file := range files {
-		r := <-rets[i]
+	retVals := make([]retVal, 0, len(files))
+	total := 0
+	cols := 0.0
 
-		if r.Error != nil {
-			fmt.Println(file, r.Error)
+	for _, ret := range rets {
+		val := <-ret
+		retVals = append(retVals, val)
+
+		if val.Words > 0 {
+			cols = math.Max(cols, math.Log10(float64(val.Words)))
+		}
+
+		total += val.Words
+	}
+
+	cols = math.Max(cols, math.Log10(float64(total)))
+
+	retVals = append(retVals, retVal{
+		File: "total",
+		Words: total,
+		Error: nil,
+	})
+
+	colstr := strconv.Itoa(int(math.Ceil(cols)))
+
+	for _, val := range retVals {
+		if val.Error != nil {
+			fstr := "%" + colstr + "s %s\n"
+			fmt.Fprintf(os.Stderr, fstr, "#", val.Error)
 			continue
 		}
 
-		fmt.Println(file, r.Words)
+		fmt.Printf("%" + colstr + "d %s\n", val.Words, val.File)
 	}
 }
