@@ -143,14 +143,15 @@ func main() {
 	}
 
 	type retVal struct {
-		File string
 		Words int
 		Error error
 	}
 
-	ret := make(chan retVal)
+	rets := make([]chan retVal, 0, len(files))
 	for _, f := range files {
 		file := f
+		ret := make(chan retVal)
+		rets = append(rets, ret)
 
 		go func() {
 			n, err := countFile(file, *flagJobs)
@@ -159,21 +160,20 @@ func main() {
 			}
 
 			ret <- retVal{
-				File: file,
 				Words: n,
 				Error: err,
 			}
 		}()
 	}
 
-	for i := 0; i < len(files); i++ {
-		r := <-ret
+	for i, file := range files {
+		r := <-rets[i]
 
 		if r.Error != nil {
-			fmt.Println(r.File, r.Error)
+			fmt.Println(file, r.Error)
 			continue
 		}
 
-		fmt.Println(r.File, r.Words)
+		fmt.Println(file, r.Words)
 	}
 }
