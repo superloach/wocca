@@ -101,24 +101,71 @@ func wordCountParallel(input []byte, jobs int) int {
 	return wc
 }
 
-var (
-	flagJobs = flag.Int("jobs", runtime.NumCPU(), "number of parallel jobs")
-	flagInput = flag.String("input", "", "input file")
-)
+const flagInputStdin = "-"
+
+var flagJobs = flag.Int("jobs", runtime.NumCPU(), "number of parallel jobs")
+
+func countFile(name string, jobs int) (int, error) {
+	f, err := os.Stdin, error(nil)
+
+	if name != flagInputStdin {
+		f, err = os.Open(name)
+		if err != nil {
+			return -1, fmt.Errorf("open %q: %w", name, err)
+		}
+
+		defer f.Close()
+	}
+
+	input, err := io.ReadAll(f)
+	if err != nil {
+		return -1, fmt.Errorf("read %q: %w", f.Name(), err)
+	}
+
+	return wordCountParallel(input, jobs), nil
+}
 
 func main() {
 	flag.Parse()
 
-	f, err := os.Open(*flagInput)
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
+	files := flag.Args()
 
-	input, err := io.ReadAll(f)
-	if err != nil {
-		panic(err)
+	if len(files) == 0 {
+		files = append(files, flagInputStdin)
 	}
 
-	fmt.Println(wordCountParallel(input, *flagJobs))
+	type retVal struct {
+		File string
+		Words int
+		Error error
+	}
+
+	ret := make(chan retVal)
+	for _, f := range files {
+		file := f
+
+		go func() {
+			n, err := countFile(file, *flagJobs)
+			if err != nil {
+				err = fmt.Errorf("count %q: %w", file, err)
+			}
+
+			ret <- retVal{
+				File: file,
+				Words: n,
+				Error: err,
+			}
+		}()
+	}
+
+	for i := 0; i < len(files); i++ {
+		r := <-ret
+
+		if r.Error != nil {
+			fmt.Println(r.File, r.Error)
+			continue
+		}
+
+		fmt.Println(r.File, r.Words)
+	}
 }
